@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import datetime, timedelta
 
-from pawpal_system import Pet, Task, TaskStatus, Recurrence
+from pawpal_system import Pet, Task, TaskStatus, Recurrence, Scheduler
 
 
 def test_mark_completed_changes_status():
@@ -102,3 +102,65 @@ def test_completing_one_off_task_does_not_respawn():
     assert new_task is None
     assert len(pet.tasks) == 1
     assert pet.tasks[0].status == TaskStatus.COMPLETED
+
+
+def test_sort_by_time_returns_chronological_order():
+    """Sorting Correctness: sort_by_time() orders tasks by their HH:MM time.
+
+    We deliberately hand the scheduler the tasks out of order and with one
+    task that has NO time set. The expected result is early-to-late clock
+    order, with the timeless task pushed to the very end (the scheduler uses
+    a "99:99" fallback so unset times sort last).
+    """
+    scheduler = Scheduler(available_minutes=120)
+
+    evening = Task(task_id=1, title="Evening walk", duration_minutes=30, time="18:00")
+    morning = Task(task_id=2, title="Breakfast", duration_minutes=10, time="08:00")
+    midday = Task(task_id=3, title="Play", duration_minutes=15, time="12:30")
+    no_time = Task(task_id=4, title="Someday grooming", duration_minutes=20, time="")
+
+    # Pass them in a jumbled order to prove the sort is doing the work.
+    ordered = scheduler.sort_by_time([evening, no_time, midday, morning])
+
+    # Reading off the titles is the clearest way to assert the order.
+    assert [t.title for t in ordered] == [
+        "Breakfast",       # 08:00
+        "Play",            # 12:30
+        "Evening walk",    # 18:00
+        "Someday grooming",  # "" -> sorts last
+    ]
+
+
+def test_detect_conflicts_flags_duplicate_times():
+    """Conflict Detection: two tasks at the same time produce one warning.
+
+    Two tasks share 08:00, one is alone at 09:00, and one has no time. Only
+    the 08:00 pair should be flagged: we expect exactly one warning string,
+    and it should mention the clashing time.
+    """
+    scheduler = Scheduler(available_minutes=120)
+
+    tasks = [
+        Task(task_id=1, title="Feed cat", duration_minutes=10, time="08:00", pet_id=1),
+        Task(task_id=2, title="Feed dog", duration_minutes=10, time="08:00", pet_id=2),
+        Task(task_id=3, title="Walk", duration_minutes=30, time="09:00", pet_id=2),
+        Task(task_id=4, title="Later", duration_minutes=15, time="", pet_id=1),
+    ]
+
+    warnings = scheduler.detect_conflicts(tasks)
+
+    # Exactly one clash (the 08:00 pair); 09:00 is alone and "" is ignored.
+    assert len(warnings) == 1
+    assert "08:00" in warnings[0]
+
+
+def test_detect_conflicts_returns_empty_when_no_clash():
+    """Conflict Detection: distinct times produce no warnings at all."""
+    scheduler = Scheduler(available_minutes=120)
+
+    tasks = [
+        Task(task_id=1, title="Feed", duration_minutes=10, time="08:00"),
+        Task(task_id=2, title="Walk", duration_minutes=30, time="09:00"),
+    ]
+
+    assert scheduler.detect_conflicts(tasks) == []

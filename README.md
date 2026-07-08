@@ -66,19 +66,45 @@ Scheduled 4 task(s) using 90 of 180 available minutes, highest-priority tasks fi
 
 ## 🧪 Testing PawPal+
 
+Run the full test suite from the project root:
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+### What the tests cover
+
+The suite in [tests/test_pawpal.py](tests/test_pawpal.py) exercises the core
+backend behaviors of the scheduler:
+
+- **Task state** — `mark_completed()` flips a task to `COMPLETED` and stamps a completion time.
+- **Task management** — adding a task to a `Pet` grows its task list.
+- **Sorting correctness** — `Scheduler.sort_by_time()` returns tasks in chronological (`HH:MM`) order, with untimed tasks sorted last.
+- **Recurrence logic** — completing a `DAILY` task auto-spawns a new `PENDING` task due one day later (and `WEEKLY` one week later), each with a unique id; one-off tasks do **not** respawn.
+- **Conflict detection** — `Scheduler.detect_conflicts()` flags two tasks sharing a start time with a single warning, ignores untimed tasks, and returns an empty list when there are no clashes.
+
+### Successful test run
 
 ```
-# Paste your pytest output here
+============================= test session starts =============================
+platform win32 -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0
+rootdir: C:\Users\lkach\Documents\codepath AI\ai110-module2show-pawpal-starter
+plugins: anyio-4.13.0
+collected 8 items
+
+tests\test_pawpal.py ........                                            [100%]
+
+============================== 8 passed in 0.03s ==============================
 ```
+
+### Confidence Level: ★★★★☆ (4 / 5)
+
+All 8 tests pass and cover the highest-risk logic — sorting, recurrence
+roll-forward, and conflict detection. I'm holding back one star because a few
+behaviors aren't tested yet: the greedy `build_plan()` time-budgeting (including
+the "task larger than the whole budget is skipped, not truncated" case), the
+empty-pet edge case, and boundary conditions like a task duration exactly equal
+to the remaining minutes. Adding those would raise confidence to 5/5.
 
 ## 📐 Smarter Scheduling
 
