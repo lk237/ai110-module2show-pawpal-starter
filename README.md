@@ -22,6 +22,35 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## ✨ Features
+
+PawPal+ is built around a small scheduling engine (`Scheduler` in
+[pawpal_system.py](pawpal_system.py)). Each feature below names the algorithm
+that powers it:
+
+- **Priority sorting** — `sort_tasks()` orders tasks by descending priority
+  (`HIGH → MEDIUM → LOW`) and breaks ties with the *shorter* task first, so the
+  greedy planner can fit more into the day.
+- **Sorting by time** — `sort_by_time()` arranges tasks chronologically using
+  their zero-padded `"HH:MM"` string; untimed tasks sort to the end.
+- **Filtering** — `filter_tasks()` narrows a task list by completion status,
+  by pet, or both (combinable keyword filters).
+- **Greedy time-budget planning** — `build_plan()` + `fits()` walk the
+  priority-sorted tasks and place each one that still fits the owner's remaining
+  minutes into a back-to-back time slot; oversized tasks are skipped, not
+  truncated.
+- **Conflict warnings** — `detect_conflicts()` flags two or more tasks booked
+  for the same start time and returns human-readable warnings (never raises), so
+  the plan still builds while the owner is alerted.
+- **Daily / weekly recurrence** — `next_due_date()`, `spawn_next()`, and
+  `Pet.complete_task()` auto-respawn a fresh `PENDING` copy of a recurring task
+  (one day or one week later) the moment it's completed; one-off tasks don't
+  respawn.
+- **Task lifecycle** — `mark_completed()`, `mark_missed()`, and `is_pending()`
+  track each task's `PENDING / COMPLETED / MISSED` status.
+- **Plan explanation** — `explain()` produces a human-readable summary of the
+  generated schedule (which tasks, when, and how much of the budget was used).
+
 ## Getting started
 
 ### Setup
@@ -172,12 +201,112 @@ summarizes each feature and the method that implements it; details follow below.
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+### The interface
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+The Streamlit app ([app.py](app.py)) is a single scrolling page with four
+sections. A user can:
+
+- **Set owner info** — edit the owner's name (their time budget and preferred
+  start time drive the schedule).
+- **Add pets** — enter a name + species and click **Add pet**; current pets show
+  in a table with their task counts.
+- **Add tasks** — for a chosen pet, enter a title, duration, priority, and an
+  *optional fixed time*, then click **Add task**.
+- **Review tasks** — every task appears in a table **sorted chronologically**
+  (via `Scheduler.sort_by_time`), and any same-time clashes are surfaced as a
+  yellow **conflict warning** (via `detect_conflicts`) — or a green "no
+  conflicts" confirmation.
+- **Generate the schedule** — click **Generate schedule** to build the day's
+  plan (via `build_plan`), rendered as a start/end timetable with a success
+  summary of tasks placed and minutes used.
+
+### Example workflow
+
+1. Open the app (`streamlit run app.py`). The owner "Jordan" is preloaded.
+2. Type a pet name (e.g. `Rex`, species `dog`) and click **Add pet**.
+3. Add a task: `Morning walk`, 45 min, priority `high`, fixed time `08:00`,
+   assigned to Rex → **Add task**.
+4. Add a second task at the *same* `08:00` time → the app shows a **conflict
+   warning** naming both tasks so you can move one.
+5. Click **Generate schedule** → today's plan appears as a timetable, ordered
+   highest-priority-first and packed into the owner's available minutes, with a
+   green summary and an expandable "Why this plan?" reasoning block.
+
+### Key Scheduler behaviors on display
+
+- **Sorting by time** — tasks added out of order are shown in clock order.
+- **Priority-first packing** — the generated plan leads with `HIGH` tasks and
+  drops tasks that don't fit the time budget.
+- **Conflict warnings** — same-start-time tasks are flagged without blocking the
+  plan.
+- **Filtering** — completed vs. pending and per-pet views (shown in the CLI demo
+  below).
+
+### Sample CLI output
+
+The command-line demo ([main.py](main.py)) exercises the same engine end to end
+— sorting, filtering, conflict detection, and plan building — on two pets with
+deliberately scrambled times and a same-slot clash:
+
+```
+$ python main.py
+============================================
+Tasks as added (unsorted)
+============================================
+  12:30  Midday walk (Rex, 45 min) [high, pending]
+  07:30  Breakfast feeding (Rex, 15 min) [high, completed]
+  12:30  Grooming session (Rex, 30 min) [medium, pending]
+  18:00  Litter box cleaning (Luna, 10 min) [medium, pending]
+  09:15  Play / enrichment (Luna, 20 min) [low, pending]
+  12:30  Vet check-up (Luna, 30 min) [high, pending]
+
+============================================
+Sorted by time (sort_by_time)
+============================================
+  07:30  Breakfast feeding (Rex, 15 min) [high, completed]
+  09:15  Play / enrichment (Luna, 20 min) [low, pending]
+  12:30  Midday walk (Rex, 45 min) [high, pending]
+  12:30  Grooming session (Rex, 30 min) [medium, pending]
+  12:30  Vet check-up (Luna, 30 min) [high, pending]
+  18:00  Litter box cleaning (Luna, 10 min) [medium, pending]
+
+============================================
+Filtered: only PENDING tasks (filter_tasks)
+============================================
+  09:15  Play / enrichment (Luna, 20 min) [low, pending]
+  12:30  Midday walk (Rex, 45 min) [high, pending]
+  12:30  Grooming session (Rex, 30 min) [medium, pending]
+  12:30  Vet check-up (Luna, 30 min) [high, pending]
+  18:00  Litter box cleaning (Luna, 10 min) [medium, pending]
+
+============================================
+Filtered: only Rex's tasks (filter_tasks by pet)
+============================================
+  07:30  Breakfast feeding (Rex, 15 min) [high, completed]
+  12:30  Midday walk (Rex, 45 min) [high, pending]
+  12:30  Grooming session (Rex, 30 min) [medium, pending]
+
+============================================
+Conflict check (detect_conflicts)
+============================================
+[!] Conflict at 12:30: 3 tasks overlap - 'Midday walk' (pet 1), 'Grooming session' (pet 1), 'Vet check-up' (pet 2)
+
+========================================
+Today's Schedule for Jordan
+========================================
+  08:00-08:30  Vet check-up (Luna, 30 min) [high]
+  08:30-09:15  Midday walk (Rex, 45 min) [high]
+  09:15-09:25  Litter box cleaning (Luna, 10 min) [medium]
+  09:25-09:55  Grooming session (Rex, 30 min) [medium]
+  09:55-10:15  Play / enrichment (Luna, 20 min) [low]
+----------------------------------------
+Daily plan:
+  08:00–08:30  Vet check-up (30 min) [priority: high]
+  08:30–09:15  Midday walk (45 min) [priority: high]
+  09:15–09:25  Litter box cleaning (10 min) [priority: medium]
+  09:25–09:55  Grooming session (30 min) [priority: medium]
+  09:55–10:15  Play / enrichment (20 min) [priority: low]
+Scheduled 5 task(s) using 135 of 180 available minutes, highest-priority tasks first.
+```
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->

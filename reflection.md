@@ -99,6 +99,24 @@ of the scheduler wouldn't need to know.
 - Describe one moment where you did not accept an AI suggestion as-is.
 - How did you evaluate or verify what the AI suggested?
 
+**c. AI Strategy**
+
+- Which AI coding assistant features were most effective for building your scheduler?
+
+Three features did the heavy lifting. First, **whole-file/multi-file context** — attaching `pawpal_system.py` and asking the assistant to review the skeleton for missing relationships and logic bottlenecks is what surfaced the `Owner`/`Scheduler` constraint duplication and led to the `from_owner` classmethod. Second, **inline reasoning on tradeoffs** rather than just code: asking "what breaks if two tasks share a start time?" produced a discussion of exact-match vs. interval-overlap detection, which let me choose the lightweight approach deliberately instead of accidentally. Third, **test scaffolding** — the assistant was fastest at turning a described behavior ("completing a daily task should spawn a new pending task one day later") into a concrete pytest case I could then read, run, and trust.
+
+- Give one example of an AI suggestion you rejected or modified to keep your system design clean.
+
+When I added conflict detection, the assistant proposed a full **interval-overlap** check — comparing each task's `[start, start + duration)` window against every other's. It was correct and more thorough, but it dragged in edge cases (back-to-back tasks that merely touch, tasks with no duration, sweep-line ordering) that the scenario didn't need. I **modified it down** to a single `O(n)` exact-start-time grouping in `detect_conflicts`, and documented *why* in the tradeoffs section so the scope choice is intentional and reversible. I made a similar call on data modeling: rather than a bidirectional `Pet`↔`Task` sync the assistant leaned toward, I kept `Pet.tasks` as the single source of truth and demoted `Task.pet_id` to a documented back-reference.
+
+- How did using separate chat sessions for different phases help you stay organized?
+
+I ran each phase in its own session — UML design, backend implementation, Streamlit UI wiring, the README, then the UML/reflection updates. Keeping them separate meant each conversation carried only the context relevant to that phase, so the assistant's suggestions stayed on-topic instead of re-litigating settled decisions, and I could revisit a phase's reasoning later without scrolling past unrelated work. It also enforced a natural checkpoint: I only moved to the next session once the current artifact (diagram, passing tests, working app) was actually done, which kept the phases from bleeding into each other.
+
+- Summarize what you learned about being the "lead architect" when collaborating with powerful AI tools.
+
+The assistant is excellent at producing *a* correct implementation quickly, but "correct" and "right for this system" aren't the same thing — that judgment stayed mine. My job as lead architect was to own the invariants (single source of truth, one responsibility per class, scope matched to the scenario) and treat AI output as a strong draft to accept, trim, or redirect against those invariants. The most valuable prompts weren't "write this for me" but "here's my design and my constraint — where does it break?" I learned to verify every suggestion against the actual code and tests rather than its plausibility, and that saying *no* to a technically-superior-but-heavier suggestion is itself a design decision worth documenting.
+
 ---
 
 ## 4. Testing and Verification

@@ -1,0 +1,118 @@
+classDiagram
+    %% PawPal+ class diagram (FINAL) — pet care planning assistant
+    %% Updated to match the shipped pawpal_system.py implementation.
+
+    class Priority {
+        <<enumeration>>
+        LOW
+        MEDIUM
+        HIGH
+    }
+
+    class Recurrence {
+        <<enumeration>>
+        NONE
+        DAILY
+        WEEKLY
+    }
+
+    class TaskStatus {
+        <<enumeration>>
+        PENDING
+        COMPLETED
+        MISSED
+    }
+
+    class TaskType {
+        <<enumeration>>
+        FEEDING
+        WALKING
+        GROOMING
+        VET_VISIT
+        MEDICATION
+        ENRICHMENT
+        OTHER
+    }
+
+    class Owner {
+        +int owner_id
+        +str name
+        +int available_minutes
+        +int preferred_start_minute
+        +list~Pet~ pets
+        +add_pet(pet Pet) void
+        +remove_pet(pet_id int) void
+        +get_pet(pet_id int) Pet
+        +all_tasks() list~Task~
+        +all_pending_tasks() list~Task~
+    }
+
+    class Pet {
+        +int pet_id
+        +str name
+        +str species
+        +str breed
+        +date birth_date
+        +str notes
+        +list~Task~ tasks
+        +add_task(task Task) void
+        +remove_task(task_id int) void
+        +complete_task(task_id int, when datetime) Task
+        +get_pending_tasks() list~Task~
+        +get_completed_tasks() list~Task~
+        +update_notes(notes str) void
+        -_next_task_id() int
+    }
+
+    class Task {
+        +int task_id
+        +str title
+        +int duration_minutes
+        +Priority priority
+        +TaskType task_type
+        +Recurrence recurrence
+        +str time
+        +int pet_id
+        +str notes
+        +TaskStatus status
+        +datetime due_date
+        +datetime completed_at
+        +priority_rank() int
+        +mark_completed(when datetime) void
+        +next_due_date(from_time datetime) datetime
+        +spawn_next(from_time datetime) Task
+        +mark_missed() void
+        +is_pending() bool
+        +update_notes(notes str) void
+    }
+
+    class ScheduledItem {
+        +int start_minute
+        +Task task
+        +start_time() str
+    }
+
+    class Scheduler {
+        +int available_minutes
+        +int start_minute
+        +from_owner(owner Owner) Scheduler
+        +sort_tasks(tasks list~Task~) list~Task~
+        +sort_by_time(tasks list~Task~) list~Task~
+        +filter_tasks(tasks list~Task~, status TaskStatus, pet_id int) list~Task~
+        +fits(task Task, remaining int) bool
+        +detect_conflicts(tasks list~Task~) list~str~
+        +build_plan(owner Owner) list~ScheduledItem~
+        +explain(plan list~ScheduledItem~) str
+    }
+
+    Owner "1" --> "1..*" Pet : owns
+    Pet "1" --> "0..*" Task : has
+    Task --> Priority : uses
+    Task --> Recurrence : uses
+    Task --> TaskStatus : uses
+    Task --> TaskType : uses
+    Task ..> Task : spawn_next() (recurring)
+    Pet ..> Task : complete_task() spawns next
+    Scheduler ..> Owner : built from / reads tasks
+    Scheduler --> ScheduledItem : produces
+    ScheduledItem --> Task : wraps
