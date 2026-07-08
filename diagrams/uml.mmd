@@ -1,15 +1,70 @@
 classDiagram
-    %% Replace the placeholders below with your actual classes, attributes, methods, and relationships.
-    %% Keep this file updated so it matches your final implementation.
+    %% PawPal+ class diagram — pet care planning assistant
 
-    class ClassName {
-        +type attribute
-        +method() returnType
+    class Priority {
+        <<enumeration>>
+        LOW
+        MEDIUM
+        HIGH
     }
 
-    class AnotherClass {
-        +type attribute
-        +method() returnType
+    class Recurrence {
+        <<enumeration>>
+        NONE
+        DAILY
+        WEEKLY
     }
 
-    ClassName --> AnotherClass : relationship
+    class Owner {
+        +int owner_id
+        +str name
+        +int available_minutes
+        +int preferred_start_minute
+        +list~Pet~ pets
+        +add_pet(pet Pet) void
+        +get_pet(pet_id int) Pet
+    }
+
+    class Pet {
+        +int pet_id
+        +str name
+        +str species
+        +list~Task~ tasks
+        +add_task(task Task) void
+        +remove_task(task_id int) void
+        +get_pending_tasks() list~Task~
+    }
+
+    class Task {
+        +int task_id
+        +str title
+        +int duration_minutes
+        +Priority priority
+        +Recurrence recurrence
+        +priority_rank() int
+        +mark_completed() void
+    }
+
+    class ScheduledItem {
+        +int start_minute
+        +Task task
+    }
+
+    class Scheduler {
+        +int available_minutes
+        +int start_minute
+        +from_owner(owner Owner) Scheduler
+        +sort_tasks(tasks list~Task~) list~Task~
+        +fits(task Task, remaining int) bool
+        +build_plan(pet Pet) list~ScheduledItem~
+        +explain(plan list~ScheduledItem~) str
+    }
+
+    Owner "1" --> "1..*" Pet : owns
+    Pet "1" --> "0..*" Task : has
+    Task --> Priority : uses
+    Task --> Recurrence : uses
+    Scheduler ..> Owner : built from
+    Scheduler ..> Pet : reads tasks from
+    Scheduler --> ScheduledItem : produces
+    ScheduledItem --> Task : wraps
